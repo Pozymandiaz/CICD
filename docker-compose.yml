@@ -1,0 +1,83 @@
+version: "3.8"
+
+services:
+  # Frontend: Nginx pour servir les fichiers statiques
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - monitoring_network
+
+  # Backend: API Node.js
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgres://postgres:password@database:5432/app_db
+    depends_on:
+      - database
+    networks:
+      - monitoring_network
+
+  # Database: PostgreSQL
+  database:
+  image: postgres:15
+  environment:
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: password
+    POSTGRES_DB: app_db
+  ports:
+    - "5432:5432"
+  volumes:
+    - database_data:/var/lib/postgresql/data
+    - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+  networks:
+    - monitoring_network
+
+  # cAdvisor: Monitoring des conteneurs
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.0
+    ports:
+      - "8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - monitoring_network
+
+  # Prometheus: Collecteur de métriques
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - monitoring_network
+
+  # Grafana: Visualisation des métriques
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - monitoring_network
+
+volumes:
+  database_data:
+  grafana_data:
+
+networks:
+  monitoring_network:
