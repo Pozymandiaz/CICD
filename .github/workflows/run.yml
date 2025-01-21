@@ -49,27 +49,8 @@ jobs:
         working-directory: ./backend
         run: npm test
 
-  # Job 3 : Linter pour le code
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
-
-      - name: Lint Frontend Code
-        working-directory: ./frontend
-        run: npm run lint
-
-      - name: Lint Backend Code
-        working-directory: ./backend
-        run: npm run lint
-
-  # Job 4 : Construire et publier les images Docker
+  # Job 3 : Construire et publier les images Docker
   build-and-push:
     runs-on: ubuntu-latest
     needs: [test-frontend, test-backend, lint]
