@@ -1,75 +1,55 @@
-name: CI/CD Workflow
+name: Build and Deploy Docker Containers
 
 on:
   push:
     branches:
-      - main
+      - dev  # Déclenche le workflow lorsque des changements sont poussés sur la branche `main`
   pull_request:
     branches:
-      - main
+      - dev  # Déclenche le workflow pour les PRs vers la branche `main`
 
 jobs:
-  # Job 1 : Tester le frontend
-  test-frontend:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-latest  # Utiliser un environnement Ubuntu pour exécuter le workflow
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3  # Récupère le code du dépôt
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2  # Installe Docker Buildx, nécessaire pour des builds multi-architecture
+
+      - name: Cache Docker layers
+        uses: actions/cache@v3
         with:
-          node-version: 18
+          path: /tmp/.buildx-cache  # Caching des layers Docker pour améliorer la vitesse des builds
+          key: ${{ runner.os }}-build-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-build-
 
-      - name: Install dependencies (Frontend)
-        working-directory: ./frontend
-        run: npm install
-
-      - name: Run tests (Frontend)
-        working-directory: ./frontend
-        run: npm test
-
-  # Job 2 : Tester le backend
-  test-backend:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
-
-      - name: Install dependencies (Backend)
-        working-directory: ./backend
-        run: npm install
-
-      - name: Run tests (Backend)
-        working-directory: ./backend
-        run: npm test
-
-
-  # Job 3 : Construire et publier les images Docker
-  build-and-push:
-    runs-on: ubuntu-latest
-    needs: [test-frontend, test-backend]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Log in to DockerHub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build and push Frontend Docker image
+      - name: Build and push Docker images
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/frontend:latest ./frontend
-          docker push ${{ secrets.DOCKER_USERNAME }}/frontend:latest
+          docker-compose -f docker-compose.yml build  # Construire les images Docker
+          docker-compose -f docker-compose.yml push   # Push des images vers un registre Docker (si applicable)
 
-      - name: Build and push Backend Docker image
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build  # Ce job dépend du job `build` pour commencer
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3  # Récupère le code du dépôt
+
+      - name: Set up SSH for deployment
+        uses: appleboy/ssh-action@v0.1.6  # Utilise SSH pour se connecter au serveur distant
+        with:
+          host: ${{ secrets.DEPLOY_SERVER_IP }}  # Adresse IP du serveur distant
+          username: ${{ secrets.DEPLOY_SERVER_USER }}  # Nom d'utilisateur SSH
+          key: ${{ secrets.DEPLOY_SERVER_SSH_KEY }}  # Clé SSH privée pour l'authentification
+
+      - name: Deploy to server
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/backend:latest ./backend
-          docker push ${{ secrets.DOCKER_USERNAME }}/backend:latest
+          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_SERVER_USER }}@${{ secrets.DEPLOY_SERVER_IP }} << 'EOF'
+            cd /path/to/your/app  # Accédez au répertoire de l'application sur le serveur
+            docker-compose pull  # Récupérer les dernières images
+            docker-compose up -d  # Démarrer les conteneurs en mode détaché
+          EOF
