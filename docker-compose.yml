@@ -1,50 +1,51 @@
 version: "3.8"
 
 services:
-  # Frontend: Nginx pour servir les fichiers statiques
-  frontend:
-    build:
-      context: ./frontend
-    ports:
-      - "8080:80"
-    depends_on:
-      - backend
-    networks:
-      - monitoring_network
-
-  # Backend: API Node.js
+  # Backend: API et WebSocket
   backend:
     build:
       context: ./backend
     ports:
-      - "3000:3000"
+      - "3000:3000" # Expose l'API et le WebSocket
+    networks:
+      - app_network
+    volumes:
+      - ./backend:/app # Monter le répertoire backend pour développement
     environment:
-      - DATABASE_URL=postgres://postgres:password@database:5432/app_db
+      DATABASE_URL: postgres://postgres:password@database:5432/app_db # Connexion à PostgreSQL
     depends_on:
       - database
+
+  # Frontend: Application utilisateur
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "8080:80" # Expose le frontend sur le port 8080
     networks:
-      - monitoring_network
+      - app_network
 
   # Database: PostgreSQL
   database:
-  image: postgres:15
-  environment:
-    POSTGRES_USER: postgres
-    POSTGRES_PASSWORD: password
-    POSTGRES_DB: app_db
-  ports:
-    - "5432:5432"
-  volumes:
-    - database_data:/var/lib/postgresql/data
-    - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-  networks:
-    - monitoring_network
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: app_db
+    ports:
+      - "5432:5432" # Expose PostgreSQL pour des connexions locales (facultatif)
+    volumes:
+      - database_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - app_network
+      - monitoring_network
 
   # cAdvisor: Monitoring des conteneurs
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.47.0
     ports:
-      - "8081:8080"
+      - "8081:8080" # Monitoring des conteneurs (accessible via navigateur)
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:rw
@@ -57,27 +58,33 @@ services:
   prometheus:
     image: prom/prometheus:latest
     ports:
-      - "9090:9090"
+      - "9090:9090" # Interface web de Prometheus
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     networks:
       - monitoring_network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
 
   # Grafana: Visualisation des métriques
   grafana:
     image: grafana/grafana:latest
     ports:
-      - "3001:3000"
+      - "3001:3000" # Interface web de Grafana
     volumes:
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
     networks:
       - monitoring_network
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin # Identifiant par défaut
+      - GF_SECURITY_ADMIN_PASSWORD=admin # Mot de passe par défaut
 
 volumes:
   database_data:
   grafana_data:
 
 networks:
+  app_network:
   monitoring_network:

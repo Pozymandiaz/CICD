@@ -1,0 +1,19 @@
+# Étape 1 : Construction des fichiers statiques (si nécessaire)
+# Si vous avez un projet avec un outil de build comme React, Angular ou Vue.js, utilisez Node.js pour la construction
+# Sinon, ignorez cette étape
+# FROM node:18 as build
+# WORKDIR /app
+# COPY . .
+# RUN npm install && npm run build
+
+# Étape 2 : Image finale avec Nginx
+FROM nginx:latest
+
+# Copier les fichiers HTML, CSS, JS dans le dossier Nginx par défaut
+COPY . /usr/share/nginx/html
+
+# Exposer le port 80 pour Nginx
+EXPOSE 80
+
+# Démarrer Nginx
+CMD ["nginx", "-g", "daemon off;"]

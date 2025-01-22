@@ -77,5 +77,21 @@ itemForm.addEventListener('submit', (e) => {
   }
 });
 
+// Connexion au serveur WebSocket
+const socket = new WebSocket('ws://localhost:3000');
+
+socket.addEventListener('open', () => {
+  console.log('Connecté au serveur WebSocket');
+});
+
+// Recevoir des notifications de mise à jour
+socket.addEventListener('message', (event) => {
+  const message = JSON.parse(event.data);
+  if (message.event === 'new_item') {
+    console.log('Nouvel élément reçu:', message.data);
+    addItemToDOM(message.data);
+  }
+});
+
 // Charger les éléments au démarrage
 fetchItems();
